@@ -106,61 +106,34 @@ app.delete("/api/item-delete/:barcode", async (req, res) => {
 });
 
 // NEW: GET endpoint for fetching transactions with date range filtering
-// REVISED: GET endpoint for fetching transactions with server-side pagination
 app.get("/api/transactions", async (req, res) => {
-  // CHANGED: Get page and limit from query, provide defaults
-  const { startDate, endDate, transactionNo, page = 1, limit = 10 } = req.query;
-
-  // CHANGED: Parse page and limit to integers and calculate the offset
-  const pageInt = parseInt(page, 10);
-  const limitInt = parseInt(limit, 10);
-  const offset = (pageInt - 1) * limitInt;
+  const { startDate, endDate, transactionNo } = req.query;
 
   try {
-    let baseQuery;
-    let countQuery;
+    let queryText;
     let queryParams = [];
 
-    // This logic determines the base filter for both the data and the count
     if (transactionNo) {
-      baseQuery = 'FROM transactions WHERE "transactionNo" = $1';
+      // Filter by transactionNo only, ignoring date filters.
+      queryText = `
+          SELECT * FROM transactions 
+          WHERE "transactionNo" = $1 
+          ORDER BY "transactionDate" DESC
+      `;
       queryParams = [transactionNo];
     } else if (startDate && endDate) {
-      baseQuery = 'FROM transactions WHERE "transactionDate" BETWEEN $1 AND $2';
-      // Add time to make the date range inclusive
+      queryText = `
+          SELECT * FROM transactions 
+          WHERE "transactionDate" BETWEEN $1 AND $2 
+          ORDER BY "transactionDate" DESC
+      `;
       queryParams = [`${startDate} 00:00:00`, `${endDate} 23:59:59`];
     } else {
-      baseQuery = "FROM transactions";
+      queryText = 'SELECT * FROM transactions ORDER BY "transactionDate" DESC';
     }
 
-    // CHANGED: Create two separate queries
-    // 1. The query to get the total count of matching records
-    countQuery = `SELECT COUNT(*) AS "totalCount" ${baseQuery}`;
-
-    // 2. The query to get the paginated data
-    // Add new placeholders for LIMIT and OFFSET
-    const dataQuery = `
-        SELECT * ${baseQuery} 
-        ORDER BY "transactionDate" DESC 
-        LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
-      `;
-
-    // Execute both queries
-    const countResult = await pool.query(countQuery, queryParams);
-    const dataResult = await pool.query(dataQuery, [
-      ...queryParams,
-      limitInt,
-      offset,
-    ]);
-
-    const totalCount = parseInt(countResult.rows[0].totalCount, 10);
-    const transactions = dataResult.rows;
-
-    // CHANGED: Return a structured object with transactions and totalCount
-    res.json({
-      transactions,
-      totalCount,
-    });
+    const { rows } = await pool.query(queryText, queryParams);
+    res.json(rows);
   } catch (error) {
     console.error("Error fetching transactions: ", error);
     res
