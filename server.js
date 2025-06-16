@@ -105,35 +105,57 @@ app.delete("/api/item-delete/:barcode", async (req, res) => {
   }
 });
 
-// NEW: GET endpoint for fetching transactions with date range filtering
+// UPDATED: GET endpoint for fetching transactions with pagination and date range filtering
 app.get("/api/transactions", async (req, res) => {
-  const { startDate, endDate, transactionNo } = req.query;
+  console.log("GET /api/transactions request received");
+  const { startDate, endDate, transactionNo, page = 1, limit = 10 } = req.query;
+
+  const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
   try {
-    let queryText;
+    let countQueryText;
+    let dataQueryText;
     let queryParams = [];
+    let countQueryParams = [];
+
+    let baseQuery = "FROM transactions";
+    let conditions = [];
 
     if (transactionNo) {
-      // Filter by transactionNo only, ignoring date filters.
-      queryText = `
-          SELECT * FROM transactions 
-          WHERE "transactionNo" = $1 
-          ORDER BY "transactionDate" DESC
-      `;
-      queryParams = [transactionNo];
+      conditions.push(`"transactionNo" = $${queryParams.length + 1}`);
+      queryParams.push(transactionNo);
+      countQueryParams.push(transactionNo);
     } else if (startDate && endDate) {
-      queryText = `
-          SELECT * FROM transactions 
-          WHERE "transactionDate" BETWEEN $1 AND $2 
-          ORDER BY "transactionDate" DESC
-      `;
-      queryParams = [`${startDate} 00:00:00`, `${endDate} 23:59:59`];
-    } else {
-      queryText = 'SELECT * FROM transactions ORDER BY "transactionDate" DESC';
+      conditions.push(
+        `"transactionDate" BETWEEN $${queryParams.length + 1} AND $${
+          queryParams.length + 2
+        }`
+      );
+      queryParams.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
+      countQueryParams.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
     }
 
-    const { rows } = await pool.query(queryText, queryParams);
-    res.json(rows);
+    if (conditions.length > 0) {
+      baseQuery += " WHERE " + conditions.join(" AND ");
+    }
+
+    countQueryText = `SELECT COUNT(*) ${baseQuery}`;
+    dataQueryText = `SELECT * ${baseQuery} ORDER BY "transactionDate" DESC LIMIT $${
+      queryParams.length + 1
+    } OFFSET $${queryParams.length + 2}`;
+    queryParams.push(parseInt(limit, 10), offset);
+
+    // Execute both queries
+    const totalCountResult = await pool.query(countQueryText, countQueryParams);
+    const totalCount = parseInt(totalCountResult.rows[0].count, 10);
+
+    const { rows } = await pool.query(dataQueryText, queryParams);
+
+    console.log("Response content for GET /api/transactions:", {
+      data: rows,
+      totalCount,
+    });
+    res.json({ data: rows, totalCount });
   } catch (error) {
     console.error("Error fetching transactions: ", error);
     res
