@@ -10,18 +10,15 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// --- REVISED: GET endpoint to fetch transactions for the logged-in user ---
+// GET endpoint to fetch transactions for the logged-in user
 router.get("/transactions", authMiddleware, async (req, res) => {
   const { startDate, endDate, transactionNo, page = 1, limit = 10 } = req.query;
   const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
-
-  // --- 1. Get the user's ID from the middleware ---
   const userId = req.user.id;
 
   try {
     let queryParams = [];
     let baseQuery = "FROM transactions";
-    // --- 2. Always filter by the logged-in user's ID first ---
     let conditions = [`"user_id" = $${queryParams.length + 1}`];
     queryParams.push(userId);
 
@@ -41,12 +38,10 @@ router.get("/transactions", authMiddleware, async (req, res) => {
       baseQuery += " WHERE " + conditions.join(" AND ");
     }
 
-    // Pass the same parameters to the count query
     const countQueryText = `SELECT COUNT(*) ${baseQuery}`;
     const totalCountResult = await pool.query(countQueryText, queryParams);
     const totalCount = parseInt(totalCountResult.rows[0].count, 10);
 
-    // Add pagination parameters for the data query
     const dataQueryText = `SELECT * ${baseQuery} ORDER BY "transactionDate" DESC LIMIT $${
       queryParams.length + 1
     } OFFSET $${queryParams.length + 2}`;
@@ -62,9 +57,11 @@ router.get("/transactions", authMiddleware, async (req, res) => {
   }
 });
 
-// --- REVISED: POST endpoint to record a transaction for the logged-in user ---
+// POST endpoint to record a transaction for the logged-in user
 router.post("/transactions", authMiddleware, async (req, res) => {
-  // --- 3. Get the user's ID from the middleware ---
+  // --- Add this console.log to see the incoming data ---
+  console.log("Received transaction data on server:", req.body);
+
   const userId = req.user.id;
   const {
     barcode,
@@ -93,7 +90,6 @@ router.post("/transactions", authMiddleware, async (req, res) => {
       .json({ error: "Missing required transaction fields" });
   }
 
-  // --- 4. Add user_id to the INSERT query ---
   const insertQuery = `
         INSERT INTO transactions (
           "barcode", "itemName", "price", "quantity", "totalPrice", 
@@ -113,7 +109,7 @@ router.post("/transactions", authMiddleware, async (req, res) => {
     inCharge,
     costumer,
     classification,
-    userId, // Add userId to the values array
+    userId,
   ];
 
   try {
