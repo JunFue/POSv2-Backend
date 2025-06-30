@@ -1,0 +1,13 @@
+### GET API's
+
+GET http://localhost:3000/
+
+### POST API
+
+POST http://localhost:3000/
+Content-Type: application/json
+
+{
+  "message": "Testing POST",
+  "timestamp": 1234567890
+}

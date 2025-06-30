@@ -1,9 +1,8 @@
 const express = require("express");
 const { Pool } = require("pg");
-
+const authMiddleware = require("../middleware/authMiddleware");
 const router = express.Router();
 
-// Setup PostgreSQL connection pool
 const pool = new Pool({
   connectionString:
     process.env.DATABASE_URL ||
@@ -11,23 +10,24 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// GET endpoint for fetching transactions with pagination and date range filtering
-router.get("/transactions", async (req, res) => {
+// --- REVISED: GET endpoint to fetch transactions for the logged-in user ---
+router.get("/transactions", authMiddleware, async (req, res) => {
   const { startDate, endDate, transactionNo, page = 1, limit = 10 } = req.query;
   const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
+  // --- 1. Get the user's ID from the middleware ---
+  const userId = req.user.id;
+
   try {
-    let countQueryText;
-    let dataQueryText;
     let queryParams = [];
-    let countQueryParams = [];
     let baseQuery = "FROM transactions";
-    let conditions = [];
+    // --- 2. Always filter by the logged-in user's ID first ---
+    let conditions = [`"user_id" = $${queryParams.length + 1}`];
+    queryParams.push(userId);
 
     if (transactionNo) {
       conditions.push(`"transactionNo" = $${queryParams.length + 1}`);
       queryParams.push(transactionNo);
-      countQueryParams.push(transactionNo);
     } else if (startDate && endDate) {
       conditions.push(
         `"transactionDate" BETWEEN $${queryParams.length + 1} AND $${
@@ -35,21 +35,23 @@ router.get("/transactions", async (req, res) => {
         }`
       );
       queryParams.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
-      countQueryParams.push(`${startDate} 00:00:00`, `${endDate} 23:59:59`);
     }
 
     if (conditions.length > 0) {
       baseQuery += " WHERE " + conditions.join(" AND ");
     }
 
-    countQueryText = `SELECT COUNT(*) ${baseQuery}`;
-    dataQueryText = `SELECT * ${baseQuery} ORDER BY "transactionDate" DESC LIMIT $${
+    // Pass the same parameters to the count query
+    const countQueryText = `SELECT COUNT(*) ${baseQuery}`;
+    const totalCountResult = await pool.query(countQueryText, queryParams);
+    const totalCount = parseInt(totalCountResult.rows[0].count, 10);
+
+    // Add pagination parameters for the data query
+    const dataQueryText = `SELECT * ${baseQuery} ORDER BY "transactionDate" DESC LIMIT $${
       queryParams.length + 1
     } OFFSET $${queryParams.length + 2}`;
     queryParams.push(parseInt(limit, 10), offset);
 
-    const totalCountResult = await pool.query(countQueryText, countQueryParams);
-    const totalCount = parseInt(totalCountResult.rows[0].count, 10);
     const { rows } = await pool.query(dataQueryText, queryParams);
     res.json({ data: rows, totalCount });
   } catch (error) {
@@ -60,8 +62,10 @@ router.get("/transactions", async (req, res) => {
   }
 });
 
-// POST endpoint for recording a new transaction
-router.post("/transactions", async (req, res) => {
+// --- REVISED: POST endpoint to record a transaction for the logged-in user ---
+router.post("/transactions", authMiddleware, async (req, res) => {
+  // --- 3. Get the user's ID from the middleware ---
+  const userId = req.user.id;
   const {
     barcode,
     itemName,
@@ -89,12 +93,13 @@ router.post("/transactions", async (req, res) => {
       .json({ error: "Missing required transaction fields" });
   }
 
+  // --- 4. Add user_id to the INSERT query ---
   const insertQuery = `
         INSERT INTO transactions (
           "barcode", "itemName", "price", "quantity", "totalPrice", 
-          "transactionDate", "transactionNo", "inCharge", "costumer", "classification"
+          "transactionDate", "transactionNo", "inCharge", "costumer", "classification", "user_id"
         ) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
         RETURNING *;`;
 
   const values = [
@@ -108,6 +113,7 @@ router.post("/transactions", async (req, res) => {
     inCharge,
     costumer,
     classification,
+    userId, // Add userId to the values array
   ];
 
   try {
@@ -118,11 +124,9 @@ router.post("/transactions", async (req, res) => {
     });
   } catch (error) {
     console.error("Error inserting transaction into database: ", error);
-    res
-      .status(500)
-      .json({
-        error: "Database error occurred while recording the transaction",
-      });
+    res.status(500).json({
+      error: "Database error occurred while recording the transaction",
+    });
   }
 });
 
