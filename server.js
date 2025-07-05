@@ -13,6 +13,7 @@ const itemRoutes = require("./routes/items");
 const transactionRoutes = require("./routes/transactions");
 // --- 1. Import the new payments route file ---
 const paymentRoutes = require("./routes/payments");
+const cashoutRoutes = require("./routes/cashout"); // Add this line
 
 // --- Use Routes ---
 app.use("/api/auth", authRoutes);
@@ -20,6 +21,8 @@ app.use("/api", itemRoutes);
 app.use("/api", transactionRoutes);
 // --- 2. Register the new payments route ---
 app.use("/api", paymentRoutes);
+// --- 3. Record Expenses/Cashout route ---
+app.use("/api", cashoutRoutes);
 
 // --- Start the Server ---
 app.listen(PORT, () => {
