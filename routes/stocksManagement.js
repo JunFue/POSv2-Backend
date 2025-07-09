@@ -1,55 +1,39 @@
 const express = require("express");
-const { supabase } = require("../config/supabaseClient.js"); // Adjust the path if necessary
+const { Pool } = require("pg"); // Use the native node-postgres library
+const authMiddleware = require("../middleware/authMiddleware"); // Use the shared middleware
 
 const router = express.Router();
 
-// Middleware to get user from Supabase JWT
-const getUser = async (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res
-      .status(401)
-      .json({ error: "Authorization header is missing or invalid." });
-  }
-  const token = authHeader.split(" ")[1];
+// Initialize a connection pool directly to your PostgreSQL database
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser(token);
-
-  if (error || !user) {
-    return res
-      .status(401)
-      .json({ error: "Not authenticated or token expired." });
-  }
-
-  req.user = user; // Attach user to the request object
-  next();
-};
-
-// --- GET ALL STOCK RECORDS for the authenticated user ---
-router.get("/stocks", getUser, async (req, res) => {
+// --- GET ALL STOCK FLOW RECORDS for the authenticated user ---
+router.get("/stocks", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
   try {
-    const { data, error } = await supabase
-      .from("stock_records")
-      .select("*")
-      .eq("user_id", req.user.id)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      throw error;
-    }
-
-    res.status(200).json(data);
+    const queryText = `
+      SELECT * FROM public.stock_flow 
+      WHERE "user_id" = $1 
+      ORDER BY "created_at" DESC;
+    `;
+    const { rows } = await pool.query(queryText, [userId]);
+    res.status(200).json(rows);
   } catch (error) {
-    console.error("Error fetching stock records:", error.message);
-    res.status(500).json({ error: error.message });
+    console.error("--- ERROR FETCHING STOCK FLOW ---");
+    console.error("Full pg error object:", error);
+    res.status(500).json({
+      error: "Database error while fetching stock flow records.",
+      details: error.message,
+    });
   }
 });
 
-// --- ADD A NEW STOCK RECORD ---
-router.post("/stocks", getUser, async (req, res) => {
+// --- ADD A NEW STOCK FLOW RECORD ---
+router.post("/stocks", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
   const { item, packaging, stockFlow, quantity, notes, date } = req.body;
 
   if (!item || !stockFlow || !quantity) {
@@ -59,35 +43,30 @@ router.post("/stocks", getUser, async (req, res) => {
   }
 
   try {
-    const { data, error } = await supabase
-      .from("stock_records")
-      .insert([
-        {
-          item,
-          packaging,
-          stockFlow: stockFlow, // FIX: Key must match the exact camelCase column name in the database
-          quantity,
-          notes,
-          date,
-          user_id: req.user.id,
-        },
-      ])
-      .select()
-      .single();
+    const insertQuery = `
+      INSERT INTO public.stock_flow (item, packaging, "stockFlow", quantity, notes, date, user_id) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7) 
+      RETURNING *;
+    `;
+    const values = [item, packaging, stockFlow, quantity, notes, date, userId];
 
-    if (error) {
-      throw error;
-    }
+    const result = await pool.query(insertQuery, values);
 
-    res.status(201).json(data);
+    res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error("Error adding stock record:", error.message);
-    res.status(500).json({ error: error.message });
+    console.error("\n--- [FATAL] ERROR IN POST /STOCKS ---");
+    console.error("Full pg error object:", error);
+    res.status(500).json({
+      error: "An internal server error occurred.",
+      details: error.message,
+      code: error.code,
+    });
   }
 });
 
-// --- UPDATE AN EXISTING STOCK RECORD ---
-router.put("/stocks/:id", getUser, async (req, res) => {
+// --- UPDATE AN EXISTING STOCK FLOW RECORD ---
+router.put("/stocks/:id", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
   const { id } = req.params;
   const { item, packaging, stockFlow, quantity, notes, date } = req.body;
 
@@ -98,63 +77,65 @@ router.put("/stocks/:id", getUser, async (req, res) => {
   }
 
   try {
-    const { data, error } = await supabase
-      .from("stock_records")
-      .update({
-        item,
-        packaging,
-        stockFlow: stockFlow, // FIX: Key must match the exact camelCase column name
-        quantity,
-        notes,
-        date,
-      })
-      .eq("id", id)
-      .eq("user_id", req.user.id)
-      .select()
-      .single();
+    const updateQuery = `
+      UPDATE public.stock_flow 
+      SET item = $1, packaging = $2, "stockFlow" = $3, quantity = $4, notes = $5, date = $6 
+      WHERE id = $7 AND "user_id" = $8 
+      RETURNING *;
+    `;
+    const values = [
+      item,
+      packaging,
+      stockFlow,
+      quantity,
+      notes,
+      date,
+      id,
+      userId,
+    ];
+    const { rows } = await pool.query(updateQuery, values);
 
-    if (error) {
-      throw error;
-    }
-
-    if (!data) {
+    if (rows.length === 0) {
       return res
         .status(404)
         .json({ error: "Record not found or user not authorized." });
     }
-
-    res.status(200).json(data);
+    res.status(200).json(rows[0]);
   } catch (error) {
-    console.error("Error updating stock record:", error.message);
-    res.status(500).json({ error: error.message });
+    console.error("--- ERROR UPDATING STOCK FLOW ---");
+    console.error("Full pg error object:", error);
+    res.status(500).json({
+      error: "Failed to update stock flow record.",
+      details: error.message,
+    });
   }
 });
 
-// --- DELETE A STOCK RECORD ---
-router.delete("/stocks/:id", getUser, async (req, res) => {
+// --- DELETE A STOCK FLOW RECORD ---
+router.delete("/stocks/:id", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
   const { id } = req.params;
 
   try {
-    const { error, count } = await supabase
-      .from("stock_records")
-      .delete({ count: "exact" })
-      .eq("id", id)
-      .eq("user_id", req.user.id);
+    const deleteQuery = `
+      DELETE FROM public.stock_flow 
+      WHERE id = $1 AND "user_id" = $2;
+    `;
+    const result = await pool.query(deleteQuery, [id, userId]);
 
-    if (error) {
-      throw error;
-    }
-
-    if (count === 0) {
+    if (result.rowCount === 0) {
       return res
         .status(404)
         .json({ error: "Record not found or user not authorized." });
     }
-
     res.status(204).send();
   } catch (error) {
-    console.error("Error deleting stock record:", error.message);
-    res.status(500).json({ error: error.message });
+    console.error("--- ERROR DELETING STOCK FLOW ---");
+    console.error("Full pg error object:", error);
+    res.status(500).json({
+      error: "Failed to delete stock flow record.",
+      details: error.message,
+    });
   }
 });
 
