@@ -20,26 +20,34 @@ const PORT = process.env.PORT || 3000;
 app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json());
 
+// --- NEW DEBUG MIDDLEWARE ---
+// This will log every single request that hits the server.
+app.use((req, res, next) => {
+  console.log(
+    `[SERVER LOG] Incoming Request: ${req.method} ${req.originalUrl}`
+  );
+  next();
+});
+// --- END DEBUG ---
+
 // --- Routes ---
 const itemRoutes = require("./routes/items");
 const transactionRoutes = require("./routes/transactions");
-// --- EDIT THIS LINE ---
-const paymentRoutes = require("./routes/payments")(io); // Pass io to the payments route
-const cashoutRoutes = require("./routes/cashout");
+const paymentRoutes = require("./routes/payments")(io);
+const cashoutRoutes = require("./routes/cashout")(io);
 const stocksManagementRoutes = require("./routes/stocksManagement");
 const userManagementRoutes = require("./routes/userManagement");
 const inventoryRoutes = require("./routes/inventory");
-const flashInfoRoutes = require("./routes/flashInfo");
+const flashInfoRoutes = require("./routes/flashInfo.js");
 
 app.use("/api", itemRoutes);
 app.use("/api", transactionRoutes);
-// --- AND THIS LINE ---
-app.use("/api", paymentRoutes); // Use the initialized router
+app.use("/api", paymentRoutes);
 app.use("/api", cashoutRoutes);
 app.use("/api", stocksManagementRoutes);
 app.use("/api/admin", userManagementRoutes);
 app.use("/api", inventoryRoutes);
-app.use("/api", flashInfoRoutes);
+app.use("/api/flash-info", flashInfoRoutes);
 
 // --- Real-time Logic ---
 const inventoryListener = supabase
