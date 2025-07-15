@@ -64,9 +64,8 @@ module.exports = function (io) {
   });
 
   // POST endpoint to save a payment record
+  // POST endpoint to save a payment record
   router.post("/payments", authMiddleware, async (req, res) => {
-    console.log("Backend: Received payment data on /api/payments:", req.body);
-
     const userId = req.user.id;
     const {
       transactionDate,
@@ -85,12 +84,15 @@ module.exports = function (io) {
         .json({ error: "Missing required payment fields." });
     }
 
+    // --- FIX: Calculate the net_amount ---
+    const netAmount = parseFloat(amountToPay) - parseFloat(discount || 0);
+
     const insertQuery = `
       INSERT INTO payments (
         transaction_date, transaction_number, customer_name, amount_to_pay, 
-        amount_rendered, discount, change, in_charge, user_id
+        amount_rendered, discount, change, in_charge, user_id, net_amount
       ) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
       RETURNING *;
     `;
 
@@ -104,18 +106,16 @@ module.exports = function (io) {
       change,
       inCharge,
       userId,
+      netAmount, // Add the calculated net amount to the values array
     ];
 
     try {
       const result = await pool.query(insertQuery, values);
 
-      // --- ADD THIS ---
-      // After successfully saving, emit an event to all connected clients.
       console.log("Emitting 'payment_update' event to clients.");
       io.emit("payment_update", {
         message: "A new payment has been recorded.",
       });
-      // --- END ADD ---
 
       res.status(201).json({
         message: "Payment recorded successfully",
