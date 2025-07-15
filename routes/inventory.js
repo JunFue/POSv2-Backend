@@ -5,7 +5,6 @@ const { supabase } = require("../config/supabaseClient");
 
 // GET /api/inventory - Fetches all current inventory levels
 router.get("/inventory", async (req, res) => {
-  console.log("Received request for inventory data.");
   try {
     const { data, error } = await supabase
       .from("item_inventory")

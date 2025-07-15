@@ -12,10 +12,6 @@ if (!serviceKey) {
   );
   // We throw an error to prevent the app from starting with a broken configuration.
   throw new Error("SUPABASE_SERVICE_ROLE_KEY is not defined.");
-} else {
-  console.log("Service Role Key loaded successfully.");
-  // Log the first few characters to confirm it's the right one without exposing the full key.
-  console.log(`Service Key starts with: ${serviceKey.substring(0, 5)}...`);
 }
 // --- End Enhanced Logging ---
 

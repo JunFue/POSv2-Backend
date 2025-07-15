@@ -60,7 +60,6 @@ router.get("/transactions", authMiddleware, async (req, res) => {
 // POST endpoint to record a transaction for the logged-in user
 router.post("/transactions", authMiddleware, async (req, res) => {
   // --- Add this console.log to see the incoming data ---
-  console.log("Received transaction data on server:", req.body);
 
   const userId = req.user.id;
   const {
