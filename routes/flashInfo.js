@@ -97,4 +97,38 @@ router.get("/today-daily-expenses", authMiddleware, async (req, res) => {
   }
 });
 
+// --- NEW ENDPOINT for Monthly Income Range ---
+router.get("/net-income-range", authMiddleware, async (req, res) => {
+  const { startDate, endDate } = req.query;
+  const userId = req.user.id;
+
+  if (!startDate || !endDate) {
+    return res
+      .status(400)
+      .json({
+        error: "Both startDate and endDate query parameters are required.",
+      });
+  }
+
+  try {
+    const { data, error } = await supabase.rpc("get_net_income_for_range", {
+      p_start_date: startDate,
+      p_end_date: endDate,
+      p_user_id: userId,
+    });
+
+    if (error) {
+      console.error("Error fetching net income for range:", error);
+      return res
+        .status(500)
+        .json({ error: "Failed to fetch net income for range." });
+    }
+
+    res.json({ totalNetIncome: data });
+  } catch (error) {
+    console.error("Server error in /net-income-range:", error);
+    res.status(500).json({ error: "An internal server error occurred." });
+  }
+});
+
 module.exports = router;
