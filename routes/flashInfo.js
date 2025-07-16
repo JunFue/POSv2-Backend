@@ -97,17 +97,14 @@ router.get("/today-daily-expenses", authMiddleware, async (req, res) => {
   }
 });
 
-// --- NEW ENDPOINT for Monthly Income Range ---
 router.get("/net-income-range", authMiddleware, async (req, res) => {
   const { startDate, endDate } = req.query;
   const userId = req.user.id;
 
   if (!startDate || !endDate) {
-    return res
-      .status(400)
-      .json({
-        error: "Both startDate and endDate query parameters are required.",
-      });
+    return res.status(400).json({
+      error: "Both startDate and endDate query parameters are required.",
+    });
   }
 
   try {
@@ -128,6 +125,45 @@ router.get("/net-income-range", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error("Server error in /net-income-range:", error);
     res.status(500).json({ error: "An internal server error occurred." });
+  }
+});
+
+// --- NEW ENDPOINT for Low Stocks ---
+router.get("/low-stocks", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+  // Default to 5 if no limit is provided, and parse it to an integer.
+  const limit = parseInt(req.query.limit, 10) || 5;
+
+  try {
+    // We need to join with the 'items' table to get the user_id
+    const { data, error } = await supabase
+      .from("item_inventory")
+      .select(
+        `
+          item_name,
+          quantity_available,
+          items ( user_id )
+        `
+      )
+      .eq("items.user_id", userId) // Filter by the logged-in user
+      .order("quantity_available", { ascending: true }) // Find the lowest stock first
+      .limit(limit); // Limit the results to the requested number
+
+    if (error) {
+      // This specific error can happen if the relationship is not set up correctly
+      if (error.code === "42P01") {
+        console.error(
+          'Low Stocks Error: The "items" table relationship might be missing or misnamed.'
+        );
+        return res.status(500).json({ error: "Database relationship error." });
+      }
+      throw error;
+    }
+
+    res.json(data);
+  } catch (error) {
+    console.error("Error fetching low stocks:", error);
+    res.status(500).json({ error: "Failed to fetch low stock data." });
   }
 });
 
