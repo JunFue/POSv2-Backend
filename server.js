@@ -20,15 +20,25 @@ const PORT = process.env.PORT || 3000;
 app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json());
 
-// --- NEW DEBUG MIDDLEWARE ---
-// This will log every single request that hits the server.
+// --- Advanced Request/Response Logger ---
 app.use((req, res, next) => {
+  // Log the incoming request
   console.log(
-    `[SERVER LOG] Incoming Request: ${req.method} ${req.originalUrl}`
+    `[SERVER LOG] ==> Incoming Request: ${req.method} ${req.originalUrl}`
   );
+
+  // Use the 'finish' event on the response object to log when the response is sent
+  res.on("finish", () => {
+    // Log the status code of the response
+    console.log(
+      `[SERVER LOG] <== Responded to ${req.method} ${req.originalUrl} with Status: ${res.statusCode}`
+    );
+  });
+
+  // Continue to the next middleware or route handler
   next();
 });
-// --- END DEBUG ---
+// --- End Logger ---
 
 // --- Routes ---
 const itemRoutes = require("./routes/items");
@@ -39,6 +49,7 @@ const stocksManagementRoutes = require("./routes/stocksManagement");
 const userManagementRoutes = require("./routes/userManagement");
 const inventoryRoutes = require("./routes/inventory");
 const flashInfoRoutes = require("./routes/flashInfo.js");
+const reportRoutes = require("./routes/reports.js");
 
 app.use("/api", itemRoutes);
 app.use("/api", transactionRoutes);
@@ -48,6 +59,7 @@ app.use("/api", stocksManagementRoutes);
 app.use("/api/admin", userManagementRoutes);
 app.use("/api", inventoryRoutes);
 app.use("/api/flash-info", flashInfoRoutes);
+app.use("/api/reports", reportRoutes);
 
 // --- Real-time Logic ---
 const inventoryListener = supabase

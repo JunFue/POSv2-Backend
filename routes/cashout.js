@@ -1,60 +1,99 @@
 const express = require("express");
-const { Pool } = require("pg");
 const authMiddleware = require("../middleware/authMiddleware");
 const router = express.Router();
+const { supabase } = require("../config/supabaseClient");
 
-const pool = new Pool({
-  connectionString:
-    process.env.DATABASE_URL ||
-    "postgresql://postgres.lrqzeyrtcfyxcnjbcwqg:Setneuflenuj-posv2@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres",
-  ssl: { rejectUnauthorized: false },
-});
-
-// We will export a function that takes 'io' as an argument
 module.exports = function (io) {
-  // GET /api/cashouts - Fetches records for the logged-in user
+  // GET /api/cashout - Fetches cashout records
+  // This route is working correctly.
   router.get("/cashout", authMiddleware, async (req, res) => {
-    // ... existing GET logic from your file ...
-  });
-
-  // POST /api/cashouts - Creates a new cashout record
-  router.post("/cashout", authMiddleware, async (req, res) => {
     const userId = req.user.id;
-    const { category, amount, notes, receiptNo, cashout_date } = req.body;
-
-    if (!category || amount === undefined || !cashout_date) {
-      return res
-        .status(400)
-        .json({ error: "Category, amount, and date are required." });
-    }
-
-    const insertQuery = `
-      INSERT INTO cashouts (category, amount, notes, receipt_no, cashout_date, user_id)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *;
-    `;
-    const values = [category, amount, notes, receiptNo, cashout_date, userId];
+    const { date, startDate, endDate } = req.query;
 
     try {
-      const result = await pool.query(insertQuery, values);
+      let query = supabase.from("cashouts").select("*").eq("user_id", userId);
 
-      // --- ADD THIS ---
-      // After successfully saving, emit an event to all connected clients.
-      console.log("Emitting 'cashout_update' event to clients.");
-      io.emit("cashout_update", {
-        message: "A new cashout has been recorded.",
+      if (date) {
+        const dayStart = `${date}T00:00:00.000Z`;
+        const dayEnd = `${date}T23:59:59.999Z`;
+        query = query.gte("cashout_date", dayStart).lte("cashout_date", dayEnd);
+      } else if (startDate && endDate) {
+        query = query
+          .gte("cashout_date", startDate)
+          .lte("cashout_date", endDate);
+      } else {
+        return res
+          .status(400)
+          .json({ error: "Please provide a date or a date range." });
+      }
+
+      const { data, error } = await query.order("created_at", {
+        ascending: false,
       });
 
-      res.status(201).json(result.rows[0]);
+      if (error) throw error;
+
+      res.setHeader("Cache-Control", "no-store");
+      res.json(data);
     } catch (error) {
-      console.error("Error inserting cashout:", error);
-      res.status(500).json({ error: "Database error" });
+      console.error("Error fetching cashouts:", error);
+      res.status(500).json({ error: "Database error while fetching cashouts" });
+    }
+  });
+
+  // --- FIX: Corrected POST /api/cashout Handler ---
+  // Creates a new cashout record.
+  router.post("/cashout", authMiddleware, async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { amount, category, notes, receiptNo, cashout_date } = req.body;
+
+      if (!amount || !category || !cashout_date) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "Missing required fields: amount, category, or cashout_date.",
+          });
+      }
+
+      // --- DIAGNOSTIC LOG ---
+      // Let's log the exact data we are about to insert. This will help us verify
+      // that the `user_id` is present and correct before the database call.
+      const insertPayload = {
+        amount,
+        category,
+        notes,
+        receipt_no: receiptNo,
+        cashout_date,
+        user_id: userId,
+      };
+      console.log(
+        "[SERVER LOG] Attempting to insert payload:",
+        JSON.stringify(insertPayload, null, 2)
+      );
+      // --- END DIAGNOSTIC LOG ---
+
+      const { data, error } = await supabase
+        .from("cashouts")
+        .insert([insertPayload]) // Use the payload object
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      res.status(201).json(data);
+    } catch (error) {
+      console.error("Error creating cashout:", error.message);
+      res.status(500).json({ error: "Database error while creating cashout." });
     }
   });
 
   // DELETE /api/cashouts/:id - Deletes a specific cashout record
   router.delete("/cashout/:id", authMiddleware, async (req, res) => {
-    // ... existing DELETE logic from your file ...
+    // ... your existing DELETE logic ...
   });
 
   return router;
