@@ -1,12 +1,15 @@
 const express = require("express");
 const router = express.Router();
-// Use your existing Supabase client from the root directory
-const { supabase } = require("../config/supabaseClient");
+// You no longer need the global client here for the route logic
+// const { supabase } = require("../config/supabaseClient");
+const authMiddleware = require("../middleware/authMiddleware"); // Assuming this is the path
 
 // GET /api/inventory - Fetches all current inventory levels
-router.get("/inventory", async (req, res) => {
+// Protect the route with middleware first
+router.get("/inventory", authMiddleware, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    // IMPORTANT: Use req.supabase, not the global supabase client
+    const { data, error } = await req.supabase
       .from("item_inventory")
       .select("*")
       .order("item_name", { ascending: true });
