@@ -57,6 +57,13 @@ app.use((req, res, next) => {
 });
 // --- End Logger ---
 
+// --- NEW: Health Check Route ---
+// This route helps us verify the server is running and responding to HTTP requests.
+app.get("/", (req, res) => {
+  res.send("Backend server is running!");
+});
+// --- END OF HEALTH CHECK ---
+
 // --- Routes ---
 const itemRoutes = require("./routes/items");
 const transactionRoutes = require("./routes/transactions");
