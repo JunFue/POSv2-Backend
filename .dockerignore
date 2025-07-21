@@ -1,0 +1,23 @@
+
+# File: .dockerignore
+# Description: This file tells Docker to ignore certain files and folders when
+# building the container. This keeps the image lightweight and secure by excluding
+# development files and secrets.
+
+# Ignore local development dependencies
+node_modules
+
+# Ignore logs
+npm-debug.log
+
+# Ignore the local environment file. Secrets will be managed by Google Cloud.
+.env
+
+# Ignore Docker files themselves
+Dockerfile
+.dockerignore
+
+# Ignore Git files
+.git
+.gitignore
+
