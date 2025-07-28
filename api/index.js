@@ -2,6 +2,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const authMiddleware = require("../middleware/authMiddleware"); // Ensure this import exists
 
 const app = express();
 
@@ -34,9 +35,11 @@ const userManagementRoutes = require("../routes/userManagement");
 const inventoryRoutes = require("../routes/inventory");
 const flashInfoRoutes = require("../routes/flashInfo.js");
 const reportRoutes = require("../routes/reports.js");
-const paymentRoutes = require("../routes/payments"); // Corrected: No longer passing (io)
-const cashoutRoutes = require("../routes/cashout"); // Corrected: No longer passing (io)
+const paymentRoutes = require("../routes/payments");
+const cashoutRoutes = require("../routes/cashout");
+const categoriesRouter = require("../routes/categories"); // Import the new categories router
 
+// Apply routes
 app.use("/api", itemRoutes);
 app.use("/api", transactionRoutes);
 app.use("/api", stocksManagementRoutes);
@@ -44,8 +47,11 @@ app.use("/api/admin", userManagementRoutes);
 app.use("/api", inventoryRoutes);
 app.use("/api/flash-info", flashInfoRoutes);
 app.use("/api/reports", reportRoutes);
-app.use("/api", paymentRoutes); // Added route
-app.use("/api", cashoutRoutes); // Added route
+app.use("/api", paymentRoutes);
+app.use("/api", cashoutRoutes);
+
+// --- FIX: Apply authMiddleware to the categories route ---
+app.use("/api/categories", authMiddleware, categoriesRouter);
 
 // Export the Express app handler for Vercel
 module.exports = app;
