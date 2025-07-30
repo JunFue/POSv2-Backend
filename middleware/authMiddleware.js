@@ -1,8 +1,6 @@
-// File: middleware/authMiddleware.js
 const { createClient } = require("@supabase/supabase-js");
-const { supabase } = require("../config/supabaseClient.js"); // Global client for initial auth check
+const { supabase } = require("../config/supabaseClient.js");
 
-// These should be available from your environment variables
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
