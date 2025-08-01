@@ -1,61 +1,68 @@
+// File: routes/categoricalReport.js
+
 const express = require("express");
 const router = express.Router();
-// Import your configured Supabase client from your config folder
-const supabase = require("../config/supabaseClient");
-// Import your authentication middleware
-const authMiddleware = require("../middleware/authMiddleware");
+// We no longer need to import the global supabase client here.
+// const supabase = require('../config/supabaseClient');
 
 /**
- * @route   POST /api/categorical-report/daily-sales
- * @desc    Get the total sales for a specific classification for the authenticated user and a given date.
- * @access  Private
- * @body    {
- * "date": "YYYY-MM-DD",
- * "category": "YourClassification"
- * }
+ * GET /api/categorical-sales
+ * Fetches daily sales for a classification. This route is protected by authMiddleware.
  */
-router.post("/daily-sales", authMiddleware, async (req, res) => {
-  // 1. Destructure the required parameters from the request body.
-  // The user_id is now taken from the authenticated user session for security.
-  const { date, category } = req.body;
-  const user_id = req.user.id;
+router.get("/categorical-sales", async (req, res) => {
+  console.log("GET /api/categorical-sales endpoint hit");
+  console.log("Received query parameters:", req.query);
 
-  // 2. Validate that all required parameters have been sent from the frontend.
-  if (!date || !category) {
+  const { date, classification, userId } = req.query;
+
+  if (!date || !classification || !userId) {
     return res.status(400).json({
-      error: "Missing required parameters. Please provide date and category.",
+      error: "Bad Request: Missing required query parameters.",
     });
   }
 
   try {
-    // 3. Call the Supabase RPC function using the user-specific Supabase client from the middleware.
-    // This ensures Row Level Security policies are applied correctly.
-    const { data, error } = await req.supabase.rpc(
+    // --- FIX ---
+    // Use the user-specific Supabase client attached by the authMiddleware.
+    const supabase = req.supabase;
+
+    // Add a check to ensure the middleware has run correctly.
+    if (!supabase) {
+      console.error(
+        "Server Configuration Error: User-specific Supabase client not found on request object. Is authMiddleware applied correctly?"
+      );
+      return res.status(500).json({ error: "Server configuration error." });
+    }
+
+    console.log(
+      "Calling Supabase RPC 'get_daily_sales_by_classification' with:",
+      { p_date: date, p_classification: classification, p_user_id: userId }
+    );
+
+    const { data, error } = await supabase.rpc(
       "get_daily_sales_by_classification",
       {
         p_date: date,
-        p_classification: category,
-        p_user_id: user_id,
+        p_classification: classification,
+        p_user_id: userId,
       }
     );
 
-    // 4. Handle any errors that the database function returns.
     if (error) {
-      console.error("Supabase RPC error:", error.message);
-      return res.status(500).json({
-        error: "Failed to fetch sales data from the database.",
-        details: error.message,
-      });
+      console.error("Supabase RPC Error:", error.message);
+      return res
+        .status(500)
+        .json({ error: "Internal Server Error", details: error.message });
     }
 
-    // 5. If the call is successful, send the data back to the frontend.
+    console.log("Sending successful response with totalSales:", data);
     res.status(200).json({ totalSales: data });
   } catch (err) {
-    // Catch any other unexpected server errors.
-    console.error("Server error:", err.message);
-    res.status(500).json({ error: "An internal server error occurred." });
+    console.error("API Route Error:", err.message);
+    res
+      .status(500)
+      .json({ error: "An unexpected error occurred on the server." });
   }
 });
 
-// Export the router so it can be used in your main server file (e.g., index.js)
 module.exports = router;

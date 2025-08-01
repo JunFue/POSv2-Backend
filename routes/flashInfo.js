@@ -3,15 +3,8 @@ const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
 const { supabase } = require("../config/supabaseClient");
 
-console.log("[ROUTER LOG] flashInfo.js router file loaded by Node.");
-
 // Endpoint for Today's Gross Sales
 router.get("/today-gross-sales", authMiddleware, async (req, res) => {
-  // --- DEBUG LOG ---
-  console.log(
-    `[ROUTER LOG] ==> Successfully matched route: GET /api/flash-info/today-gross-sales`
-  );
-
   const { date } = req.query;
   const userId = req.user.id;
 
@@ -40,7 +33,6 @@ router.get("/today-gross-sales", authMiddleware, async (req, res) => {
 // Endpoint for Today's Daily Income (Net)
 router.get("/today-daily-income", authMiddleware, async (req, res) => {
   // --- DEBUG LOG ---
-  console.log("[ROUTER LOG] Matched route: GET /today-daily-income");
 
   const { date } = req.query;
   const userId = req.user.id;
@@ -69,9 +61,6 @@ router.get("/today-daily-income", authMiddleware, async (req, res) => {
 
 // Endpoint for Today's Daily Expenses
 router.get("/today-daily-expenses", authMiddleware, async (req, res) => {
-  // --- DEBUG LOG ---
-  console.log("[ROUTER LOG] Matched route: GET /today-daily-expenses");
-
   const { date } = req.query;
   const userId = req.user.id;
 
