@@ -1,29 +1,58 @@
-import express from "express";
+const express = require("express");
+const fs = require("fs");
+const path = require("path");
 
-// Initialize a new Express router.
 const router = express.Router();
 
-let lastStockUpdateTimestamp = Date.now();
+// --- PERSISTENT TIMESTAMP LOGIC (CommonJS version) ---
+// In CommonJS, __dirname is a global variable that works correctly without any special imports.
+const timestampFilePath = path.join(__dirname, "timestamp.log");
 
-// --- ENDPOINTS ---
+// Function to read the last known timestamp from the file.
+const readTimestamp = () => {
+  try {
+    if (fs.existsSync(timestampFilePath)) {
+      const timestampStr = fs.readFileSync(timestampFilePath, "utf8");
+      return parseInt(timestampStr, 10);
+    }
+  } catch (err) {
+    console.error("Error reading timestamp file:", err);
+  }
+  // This will only run on the very first server start.
+  const now = Date.now();
+  console.log(
+    `Timestamp file not found. Initializing with current time: ${now}`
+  );
+  writeTimestamp(now); // Create the file immediately
+  return now;
+};
+
+// Function to write the new timestamp to the file for persistence.
+const writeTimestamp = (timestamp) => {
+  try {
+    fs.writeFileSync(timestampFilePath, timestamp.toString(), "utf8");
+  } catch (err) {
+    console.error("Error writing timestamp file:", err);
+  }
+};
+
+// Initialize the timestamp from our persistent source (the file).
+let lastStockUpdateTimestamp = readTimestamp();
+// --- END OF PERSISTENT TIMESTAMP LOGIC ---
 
 /**
- * 1. Webhook Endpoint for Supabase
- *
- * @route POST /api/webhooks/stocks-updated
- * @description Listens for notifications from Supabase that the stocks table has changed.
- * Upon receiving a request, it updates the `lastStockUpdateTimestamp`.
- * @access Public (but should ideally be secured with a secret key shared between Supabase and the backend)
+ * Webhook Endpoint for Supabase.
+ * When the database changes, this is called.
  */
 router.post("/webhooks/stocks-updated", (req, res) => {
   console.log(
     `[${new Date().toISOString()}] Webhook received: Stocks table was updated.`
   );
 
-  // Update the timestamp to the current time.
+  // Update the timestamp in memory AND write it to the persistent file.
   lastStockUpdateTimestamp = Date.now();
+  writeTimestamp(lastStockUpdateTimestamp);
 
-  // Respond to the webhook to confirm receipt.
   res.status(200).json({
     message: "Notification received successfully.",
     newTimestamp: lastStockUpdateTimestamp,
@@ -31,21 +60,18 @@ router.post("/webhooks/stocks-updated", (req, res) => {
 });
 
 /**
- * 2. Status Endpoint for the Frontend
- *
- * @route GET /api/status/stocks
- * @description Provides the timestamp of the last known stock data modification.
- * @access Public
+ * Status Endpoint for the Frontend.
+ * Provides the timestamp of the last known stock data modification.
  */
 router.get("/status/stocks", (req, res) => {
   console.log(
     `[${new Date().toISOString()}] Frontend is checking stock status.`
   );
-
-  // Return the last update timestamp in a JSON object.
+  // Return the reliable, persistent timestamp.
   res.status(200).json({
     lastUpdatedAt: lastStockUpdateTimestamp,
   });
 });
 
+// --- Use CommonJS export syntax to match the rest of the project ---
 module.exports = router;

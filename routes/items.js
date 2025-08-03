@@ -35,7 +35,14 @@ router.post("/item-reg", authMiddleware, async (req, res) => {
   const userId = req.user.id;
   const { barcode, name, price, packaging, category } = req.body;
 
+  // --- DEBUGGING LOGS ADDED ---
+  console.log("--- New Item Registration Request ---");
+  console.log("Received User ID:", userId);
+  console.log("Received Request Body:", req.body);
+  // --- END OF DEBUGGING LOGS ---
+
   if (!barcode || !name || !price || !packaging || !category) {
+    console.log("Validation Failed: Missing required fields."); // Added log for validation failure
     return res.status(400).json({ error: "Missing required fields" });
   }
 
@@ -50,6 +57,7 @@ router.post("/item-reg", authMiddleware, async (req, res) => {
       item: result.rows[0],
     });
   } catch (error) {
+    // This will now log the detailed PostgreSQL error to your backend console
     console.error("Error inserting item into PostgreSQL: ", error);
     res.status(500).json({ error: "Database error" });
   }
