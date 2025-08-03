@@ -1,16 +1,18 @@
 // File: routes/categoricalReport.js
-
 const express = require("express");
 const router = express.Router();
-// We no longer need to import the global supabase client here.
-// const supabase = require('../config/supabaseClient');
+const authMiddleware = require("../middleware/authMiddleware");
+
+// --- REVISION ---
+// Apply the authentication middleware to all routes in this file.
+router.use(authMiddleware);
 
 /**
- * GET /api/categorical-sales
- * Fetches daily sales for a classification. This route is protected by authMiddleware.
+ * GET /api/reports/categorical/categorical-sales
+ * Fetches daily sales for a classification. This route is now protected.
  */
 router.get("/categorical-sales", async (req, res) => {
-  console.log("GET /api/categorical-sales endpoint hit");
+  console.log("GET /api/reports/categorical/categorical-sales endpoint hit");
   console.log("Received query parameters:", req.query);
 
   const { date, classification, userId } = req.query;
@@ -22,17 +24,8 @@ router.get("/categorical-sales", async (req, res) => {
   }
 
   try {
-    // --- FIX ---
     // Use the user-specific Supabase client attached by the authMiddleware.
     const supabase = req.supabase;
-
-    // Add a check to ensure the middleware has run correctly.
-    if (!supabase) {
-      console.error(
-        "Server Configuration Error: User-specific Supabase client not found on request object. Is authMiddleware applied correctly?"
-      );
-      return res.status(500).json({ error: "Server configuration error." });
-    }
 
     console.log(
       "Calling Supabase RPC 'get_daily_sales_by_classification' with:",

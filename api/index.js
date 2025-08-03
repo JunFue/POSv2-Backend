@@ -2,6 +2,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+// The authMiddleware is kept here in case other routes need it, but it's no longer applied directly in this file for categories.
 const authMiddleware = require("../middleware/authMiddleware");
 
 const app = express();
@@ -39,6 +40,7 @@ const paymentRoutes = require("../routes/payments");
 const cashoutRoutes = require("../routes/cashout");
 const categoriesRouter = require("../routes/categories");
 const categoricalReportRoutes = require("../routes/categoricalReport.js");
+const stocksStatus = require("../routes/stocksStatus.js");
 
 // Apply routes
 app.use("/api", itemRoutes);
@@ -50,11 +52,12 @@ app.use("/api/flash-info", flashInfoRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api", paymentRoutes);
 app.use("/api", cashoutRoutes);
-app.use("/api/categories", authMiddleware, categoriesRouter);
+app.use("/api", stocksStatus);
 
-// --- FIX ---
-// Apply the authMiddleware to the categorical report route.
-app.use("/api", authMiddleware, categoricalReportRoutes);
+// --- REVISION ---
+// The authMiddleware is now applied inside the respective route files.
+app.use("/api/categories", categoriesRouter);
+app.use("/api/reports/categorical", categoricalReportRoutes);
 
 // Export the Express app handler for Vercel
 module.exports = app;

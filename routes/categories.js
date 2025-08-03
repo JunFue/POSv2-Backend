@@ -1,14 +1,18 @@
 // File: routes/categories.js
 const express = require("express");
 const router = express.Router();
-// The global client is no longer needed here, but we leave the import for now.
-const { supabase } = require("../config/supabaseClient");
+const authMiddleware = require("../middleware/authMiddleware");
+
+// --- REVISION ---
+// Apply the authentication middleware to all routes in this file.
+// Any request to /api/categories/* will now require a valid token.
+router.use(authMiddleware);
 
 // GET all categories for the logged-in user
 router.get("/", async (req, res) => {
   console.log("--- GET /api/categories triggered ---");
   try {
-    // --- FIX: Use req.supabase from middleware, not the global supabase client ---
+    // We can now safely use req.supabase as it's attached by the middleware.
     const { data, error } = await req.supabase
       .from("categories")
       .select("id, name");
@@ -33,10 +37,9 @@ router.post("/", async (req, res) => {
   console.log("Request Body:", req.body);
 
   try {
-    // --- FIX: Use req.supabase from middleware ---
     const { data, error } = await req.supabase
       .from("categories")
-      .insert([{ name: name }]) // user_id is now handled by RLS policies and the authenticated client
+      .insert([{ name: name }])
       .select()
       .single();
 
@@ -60,7 +63,6 @@ router.delete("/:id", async (req, res) => {
   console.log("Category ID to delete:", id);
 
   try {
-    // --- FIX: Use req.supabase from middleware ---
     const { error } = await req.supabase
       .from("categories")
       .delete()
