@@ -1,6 +1,8 @@
 const express = require("express");
 const { Pool } = require("pg");
 const authMiddleware = require("../middleware/authMiddleware");
+// --- Step 1: Import the updateTimestamp function ---
+const { updateTimestamp } = require("./status"); // Adjust path if necessary
 
 const router = express.Router();
 
@@ -11,13 +13,10 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// --- REVISED: Get items for the logged-in user ---
+// GET /items (No changes needed here)
 router.get("/items", authMiddleware, async (req, res) => {
-  // Get the logged-in user's ID from the middleware
   const userId = req.user.id;
-
   try {
-    // Add a WHERE clause to only select items matching the user's ID
     const result = await pool.query(
       "SELECT * FROM items WHERE user_id = $1 ORDER BY created_at DESC",
       [userId]
@@ -29,43 +28,36 @@ router.get("/items", authMiddleware, async (req, res) => {
   }
 });
 
-// --- REVISED: Register an item for the logged-in user ---
+// POST /item-reg (Updated)
 router.post("/item-reg", authMiddleware, async (req, res) => {
-  // Get the logged-in user's ID from the middleware
   const userId = req.user.id;
   const { barcode, name, price, packaging, category } = req.body;
 
-  // --- DEBUGGING LOGS ADDED ---
-  console.log("--- New Item Registration Request ---");
-  console.log("Received User ID:", userId);
-  console.log("Received Request Body:", req.body);
-  // --- END OF DEBUGGING LOGS ---
-
   if (!barcode || !name || !price || !packaging || !category) {
-    console.log("Validation Failed: Missing required fields."); // Added log for validation failure
     return res.status(400).json({ error: "Missing required fields" });
   }
 
   try {
-    // Modify the INSERT query to include the user_id
     const result = await pool.query(
       "INSERT INTO items (barcode, name, price, packaging, category, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
       [barcode, name, price, packaging, category, userId]
     );
+
+    // --- Step 2: Update the global timestamp after a successful insert ---
+    await updateTimestamp();
+
     return res.json({
       status: "Item registered successfully in PostgreSQL",
       item: result.rows[0],
     });
   } catch (error) {
-    // This will now log the detailed PostgreSQL error to your backend console
     console.error("Error inserting item into PostgreSQL: ", error);
     res.status(500).json({ error: "Database error" });
   }
 });
 
-// --- REVISED: Delete an item only if it belongs to the logged-in user ---
+// DELETE /item-delete (Updated)
 router.delete("/item-delete/:barcode", authMiddleware, async (req, res) => {
-  // Get the logged-in user's ID from the middleware
   const userId = req.user.id;
   const { barcode } = req.params;
 
@@ -73,15 +65,17 @@ router.delete("/item-delete/:barcode", authMiddleware, async (req, res) => {
     return res.status(400).json({ error: "Missing barcode" });
   }
   try {
-    // Add a WHERE clause to ensure the user can only delete their own item
     const result = await pool.query(
       "DELETE FROM items WHERE barcode = $1 AND user_id = $2 RETURNING *",
       [barcode, userId]
     );
     if (result.rowCount === 0) {
-      // This can mean the item doesn't exist OR the user doesn't own it
       return res.status(404).json({ error: "Item not found or access denied" });
     }
+
+    // --- Step 2 (cont.): Update the timestamp on delete as well ---
+    await updateTimestamp();
+
     return res.json({
       status: "Item deleted successfully in PostgreSQL",
       item: result.rows[0],
