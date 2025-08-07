@@ -1,6 +1,7 @@
 // File: routes/items.js
 const express = require("express");
 const { Pool } = require("pg");
+// The 'node-fetch' dependency is no longer needed
 const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -22,15 +23,12 @@ router.get("/items", authMiddleware, async (req, res) => {
     );
     res.json(result.rows);
   } catch (error) {
-    console.error(
-      `[ERROR] Failed to fetch items for user ${userId} from PostgreSQL: `,
-      error
-    );
+    console.error(`[ERROR] GET /items: `, error);
     res.status(500).json({ error: "Database error" });
   }
 });
 
-// POST /item-reg (Updated)
+// POST /item-reg (Simplified: Broadcast logic removed)
 router.post("/item-reg", authMiddleware, async (req, res) => {
   const userId = req.user.id;
   const { barcode, name, price, packaging, category } = req.body;
@@ -40,25 +38,31 @@ router.post("/item-reg", authMiddleware, async (req, res) => {
   }
 
   try {
+    // 1. Insert the item into the database
     const result = await pool.query(
       "INSERT INTO items (barcode, name, price, packaging, category, user_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
       [barcode, name, price, packaging, category, userId]
     );
+    const savedItem = result.rows[0];
+    console.log("[API /item-reg] Database insertion successful.");
 
-    // The database trigger now handles broadcasting automatically.
-    // The client now expects the newly created item in the response
-    // to update its status from "pending" to "synced".
-    res.status(201).json(result.rows[0]);
+    // 2. Respond to the frontend. No more broadcasting from here.
+    res.status(201).json(savedItem);
   } catch (error) {
+    if (error.code === "23505") {
+      return res
+        .status(409)
+        .json({ error: "An item with this barcode or name already exists." });
+    }
     console.error(
-      `[ERROR] Failed to insert item ${barcode} into PostgreSQL: `,
+      "[API /item-reg] An error occurred during database operation:",
       error
     );
     res.status(500).json({ error: "Database error" });
   }
 });
 
-// DELETE /item-delete (Updated)
+// DELETE /item-delete (Simplified: Broadcast logic removed)
 router.delete("/item-delete/:barcode", authMiddleware, async (req, res) => {
   const userId = req.user.id;
   const { barcode } = req.params;
@@ -75,16 +79,14 @@ router.delete("/item-delete/:barcode", authMiddleware, async (req, res) => {
       return res.status(404).json({ error: "Item not found or access denied" });
     }
 
-    // The database trigger now handles broadcasting automatically.
+    console.log("[API /item-delete] Database deletion successful.");
+
     res.json({
       status: "Item deleted successfully in PostgreSQL",
       item: result.rows[0],
     });
   } catch (error) {
-    console.error(
-      `[ERROR] Failed to delete item ${barcode} from PostgreSQL: `,
-      error
-    );
+    console.error(`[ERROR] DELETE /item-delete: `, error);
     res.status(500).json({ error: "Database error" });
   }
 });
