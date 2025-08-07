@@ -1,8 +1,6 @@
-// File: api/index.js
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const authMiddleware = require("../middleware/authMiddleware");
 
 const app = express();
 
@@ -40,13 +38,6 @@ const cashoutRoutes = require("../routes/cashout");
 const categoriesRouter = require("../routes/categories");
 const categoricalReportRoutes = require("../routes/categoricalReport.js");
 
-// --- MODIFICATION: Use the reliable database-driven status route ---
-// Import the router object specifically from status.js
-const statusRoutes = require("../routes/status").router;
-
-// DELETE THIS: The old, file-based status route is no longer needed.
-// const stocksStatus = require("../routes/stocksStatus.js");
-
 // Apply routes
 app.use("/api", itemRoutes);
 app.use("/api", transactionRoutes);
@@ -57,15 +48,6 @@ app.use("/api/flash-info", flashInfoRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api", paymentRoutes);
 app.use("/api", cashoutRoutes);
-
-// --- MODIFICATION: Apply the new status route ---
-app.use("/api/status", statusRoutes);
-
-// DELETE THIS: Remove the old route handler
-// app.use("/api", stocksStatus);
-
-// --- REVISION ---
-// The authMiddleware is now applied inside the respective route files.
 app.use("/api/categories", categoriesRouter);
 app.use("/api/reports/categorical", categoricalReportRoutes);
 

@@ -2,7 +2,6 @@
 const express = require("express");
 const { Pool } = require("pg");
 const authMiddleware = require("../middleware/authMiddleware");
-const { updateTimestamp, sendUpdateToAllClients } = require("./status");
 
 const router = express.Router();
 
@@ -13,25 +12,14 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// GET /items (Updated with logs)
+// GET /items (No changes needed here)
 router.get("/items", authMiddleware, async (req, res) => {
   const userId = req.user.id;
-  console.log(
-    `[DEBUG] GET /items hit for user ${userId}. Fetching from database.`
-  );
-
   try {
     const result = await pool.query(
       "SELECT * FROM items WHERE user_id = $1 ORDER BY created_at DESC",
       [userId]
     );
-
-    console.log(
-      `[SUCCESS] Found ${result.rows.length} items for user ${userId}.`
-    );
-    // --- CHANGE: Revised the log to be less verbose ---
-    console.log("[DEBUG] Responding successfully to GET /items.");
-
     res.json(result.rows);
   } catch (error) {
     console.error(
@@ -42,17 +30,12 @@ router.get("/items", authMiddleware, async (req, res) => {
   }
 });
 
-// POST /item-reg (Updated with logs)
+// POST /item-reg (Updated)
 router.post("/item-reg", authMiddleware, async (req, res) => {
   const userId = req.user.id;
   const { barcode, name, price, packaging, category } = req.body;
 
-  console.log(
-    `[DEBUG] POST /item-reg hit for user ${userId} with barcode ${barcode}`
-  );
-
   if (!barcode || !name || !price || !packaging || !category) {
-    console.error("[ERROR] Missing required fields for item registration.");
     return res.status(400).json({ error: "Missing required fields" });
   }
 
@@ -62,17 +45,10 @@ router.post("/item-reg", authMiddleware, async (req, res) => {
       [barcode, name, price, packaging, category, userId]
     );
 
-    console.log(`[SUCCESS] Item ${barcode} inserted into database.`);
-
-    console.log("[DEBUG] Calling updateTimestamp...");
-    await updateTimestamp();
-    console.log("[DEBUG] Calling sendUpdateToAllClients...");
-    sendUpdateToAllClients();
-
-    return res.json({
-      status: "Item registered successfully in PostgreSQL",
-      item: result.rows[0],
-    });
+    // The database trigger now handles broadcasting automatically.
+    // The client now expects the newly created item in the response
+    // to update its status from "pending" to "synced".
+    res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error(
       `[ERROR] Failed to insert item ${barcode} into PostgreSQL: `,
@@ -82,17 +58,12 @@ router.post("/item-reg", authMiddleware, async (req, res) => {
   }
 });
 
-// DELETE /item-delete (Updated with logs)
+// DELETE /item-delete (Updated)
 router.delete("/item-delete/:barcode", authMiddleware, async (req, res) => {
   const userId = req.user.id;
   const { barcode } = req.params;
 
-  console.log(
-    `[DEBUG] DELETE /item-delete hit for user ${userId} with barcode ${barcode}`
-  );
-
   if (!barcode) {
-    console.error("[ERROR] Missing barcode for item deletion.");
     return res.status(400).json({ error: "Missing barcode" });
   }
   try {
@@ -101,20 +72,11 @@ router.delete("/item-delete/:barcode", authMiddleware, async (req, res) => {
       [barcode, userId]
     );
     if (result.rowCount === 0) {
-      console.warn(
-        `[WARN] Item with barcode ${barcode} not found for user ${userId} to delete.`
-      );
       return res.status(404).json({ error: "Item not found or access denied" });
     }
 
-    console.log(`[SUCCESS] Item ${barcode} deleted from database.`);
-
-    console.log("[DEBUG] Calling updateTimestamp...");
-    await updateTimestamp();
-    console.log("[DEBUG] Calling sendUpdateToAllClients...");
-    sendUpdateToAllClients();
-
-    return res.json({
+    // The database trigger now handles broadcasting automatically.
+    res.json({
       status: "Item deleted successfully in PostgreSQL",
       item: result.rows[0],
     });
