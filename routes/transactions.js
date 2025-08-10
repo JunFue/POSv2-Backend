@@ -125,4 +125,33 @@ router.post("/transactions", authMiddleware, async (req, res) => {
   }
 });
 
+router.get("/by-date", authMiddleware, async (req, res) => {
+  const { date } = req.query;
+  const userId = req.user.id;
+
+  if (!date) {
+    return res.status(400).json({ error: "Missing 'date' query parameter" });
+  }
+
+  try {
+    const queryText = `
+      SELECT * FROM transactions
+      WHERE "user_id" = $1
+        AND "transactionDate"::timestamp >= $2::date
+        AND "transactionDate"::timestamp < ($2::date + INTERVAL '1 day')
+      ORDER BY "transactionDate" DESC;
+    `;
+
+    const values = [userId, date];
+
+    const result = await pool.query(queryText, values);
+    res.json({ data: result.rows });
+  } catch (err) {
+    console.error("Error fetching transactions by date:", err);
+    res
+      .status(500)
+      .json({ error: "Database error while fetching transactions by date" });
+  }
+});
+
 module.exports = router;
