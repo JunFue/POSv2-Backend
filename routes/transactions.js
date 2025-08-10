@@ -71,7 +71,7 @@ router.post("/transactions", authMiddleware, async (req, res) => {
     transactionDate,
     transactionNo,
     inCharge,
-    costumer,
+    costumerName,
     classification,
   } = req.body;
 
@@ -92,7 +92,7 @@ router.post("/transactions", authMiddleware, async (req, res) => {
   const insertQuery = `
         INSERT INTO transactions (
           "barcode", "itemName", "price", "quantity", "totalPrice", 
-          "transactionDate", "transactionNo", "inCharge", "costumer", "classification", "user_id"
+          "transactionDate", "transactionNo", "inCharge", "costumerName", "classification", "user_id"
         ) 
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
         RETURNING *;`;
@@ -106,7 +106,7 @@ router.post("/transactions", authMiddleware, async (req, res) => {
     transactionDate,
     transactionNo,
     inCharge,
-    costumer,
+    costumerName,
     classification,
     userId,
   ];
