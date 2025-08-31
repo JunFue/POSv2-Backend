@@ -4,14 +4,11 @@ const { Pool } = require("pg");
 const authMiddleware = require("../middleware/authMiddleware");
 const router = express.Router();
 
-// It's recommended to use the Supabase client if available everywhere else,
-// but continuing with pg Pool as per original file structure.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
 });
 
-// GET endpoint (no changes needed)
 router.get("/payments", authMiddleware, async (req, res) => {
   const { startDate, endDate, transactionNo, page = 1, limit = 10 } = req.query;
   const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
@@ -22,6 +19,7 @@ router.get("/payments", authMiddleware, async (req, res) => {
     let baseQuery = 'FROM payments WHERE "user_id" = $1';
     let conditions = [];
 
+    // Build query conditions based on request parameters
     if (transactionNo) {
       conditions.push(`"transaction_number" = $${queryParams.length + 1}`);
       queryParams.push(transactionNo);
@@ -38,13 +36,22 @@ router.get("/payments", authMiddleware, async (req, res) => {
       baseQuery += " AND " + conditions.join(" AND ");
     }
 
+    // --- FIX STARTS HERE ---
+    // The original code had a bug in how it sliced queryParams for the count query.
+    // This new approach creates a clean copy of the parameters needed for the count,
+    // solving the "incorrect number of parameters" error.
+
+    // 1. Create a copy of the parameters for the count query *before* adding pagination params.
+    const countQueryParams = [...queryParams];
     const countQueryText = `SELECT COUNT(*) ${baseQuery}`;
-    const totalCountResult = await pool.query(
-      countQueryText,
-      queryParams.slice(0, conditions.length + 1)
-    );
+
+    // 2. Execute the count query with the correct parameters.
+    const totalCountResult = await pool.query(countQueryText, countQueryParams);
     const totalCount = parseInt(totalCountResult.rows[0].count, 10);
 
+    // --- FIX ENDS HERE ---
+
+    // 3. Now, add the pagination parameters and fetch the actual data.
     const dataQueryText = `SELECT * ${baseQuery} ORDER BY "transaction_date" DESC LIMIT $${
       queryParams.length + 1
     } OFFSET $${queryParams.length + 2}`;
@@ -58,7 +65,7 @@ router.get("/payments", authMiddleware, async (req, res) => {
   }
 });
 
-// POST endpoint to save a payment record
+// The POST endpoint remains unchanged.
 router.post("/payments", authMiddleware, async (req, res) => {
   const userId = req.user.id;
   const {
@@ -102,13 +109,6 @@ router.post("/payments", authMiddleware, async (req, res) => {
 
   try {
     const result = await pool.query(insertQuery, values);
-
-    // REMOVED: The io.emit call is gone. Supabase will handle real-time updates.
-    // console.log("Emitting 'payment_update' event to clients.");
-    // io.emit("payment_update", {
-    //   message: "A new payment has been recorded.",
-    // });
-
     res.status(201).json({
       message: "Payment recorded successfully",
       payment: result.rows[0],
@@ -121,5 +121,4 @@ router.post("/payments", authMiddleware, async (req, res) => {
   }
 });
 
-// Directly export the router
 module.exports = router;

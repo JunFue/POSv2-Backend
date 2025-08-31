@@ -8,11 +8,12 @@ const authMiddleware = require("../middleware/authMiddleware");
 router.use(authMiddleware);
 
 /**
- * GET /api/reports/categorical/categorical-sales
+ * GET /api/categorical-sales
  * Fetches daily sales for a classification. This route is now protected.
+ * The full path is determined by how this router is used in index.js
  */
 router.get("/categorical-sales", async (req, res) => {
-  console.log("GET /api/reports/categorical/categorical-sales endpoint hit");
+  console.log("GET /api/categorical-sales endpoint hit");
   console.log("Received query parameters:", req.query);
 
   const { date, classification, userId } = req.query;

@@ -49,7 +49,8 @@ app.use("/api/reports", reportRoutes);
 app.use("/api", paymentRoutes);
 app.use("/api", cashoutRoutes);
 app.use("/api/categories", categoriesRouter);
-app.use("/api/reports/categorical", categoricalReportRoutes);
+// --- FIX: Simplified the base route for categorical reports to match the frontend call ---
+app.use("/api", categoricalReportRoutes);
 
 // Export the Express app handler for Vercel
 module.exports = app;
