@@ -45,7 +45,8 @@ router.get("/cashout", authMiddleware, async (req, res) => {
 router.post("/cashout", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { amount, category, notes, receiptNo, cashout_date } = req.body;
+    const { amount, classification, notes, receiptNo, cashout_date, category } =
+      req.body;
 
     if (!amount || !category || !cashout_date) {
       return res.status(400).json({
@@ -55,11 +56,12 @@ router.post("/cashout", authMiddleware, async (req, res) => {
 
     const insertPayload = {
       amount,
-      category,
+      classification,
       notes,
       receipt_no: receiptNo,
       cashout_date,
       user_id: userId,
+      category,
     };
 
     const { data, error } = await supabase
