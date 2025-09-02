@@ -1,17 +1,9 @@
 // File: routes/items.js
 const express = require("express");
-const { Pool } = require("pg");
-// The 'node-fetch' dependency is no longer needed
+const pool = require("../config/db");
 const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
-
-const pool = new Pool({
-  connectionString:
-    process.env.DATABASE_URL ||
-    "postgresql://postgres.lrqzeyrtcfyxcnjbcwqg:Setneuflenuj-posv2@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres",
-  ssl: { rejectUnauthorized: false },
-});
 
 // GET /items (No changes needed here)
 router.get("/items", authMiddleware, async (req, res) => {

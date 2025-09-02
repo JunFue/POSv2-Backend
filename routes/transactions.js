@@ -1,14 +1,7 @@
 const express = require("express");
-const { Pool } = require("pg");
+const pool = require("../config/db");
 const authMiddleware = require("../middleware/authMiddleware");
 const router = express.Router();
-
-const pool = new Pool({
-  connectionString:
-    process.env.DATABASE_URL ||
-    "postgresql://postgres.lrqzeyrtcfyxcnjbcwqg:Setneuflenuj-posv2@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres",
-  ssl: { rejectUnauthorized: false },
-});
 
 // GET endpoint to fetch transactions for the logged-in user
 router.get("/transactions", authMiddleware, async (req, res) => {

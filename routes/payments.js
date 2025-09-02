@@ -1,13 +1,8 @@
 // File: routes/payments.js
 const express = require("express");
-const { Pool } = require("pg");
+const pool = require("../config/db");
 const authMiddleware = require("../middleware/authMiddleware");
 const router = express.Router();
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 router.get("/payments", authMiddleware, async (req, res) => {
   const { startDate, endDate, transactionNo, page = 1, limit = 10 } = req.query;

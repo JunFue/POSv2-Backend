@@ -1,14 +1,8 @@
 const express = require("express");
-const { Pool } = require("pg"); // Use the native node-postgres library
+const pool = require("../config/db");
 const authMiddleware = require("../middleware/authMiddleware"); // Use the shared middleware
 
 const router = express.Router();
-
-// Initialize a connection pool directly to your PostgreSQL database
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 // --- GET ALL STOCK FLOW RECORDS for the authenticated user ---
 router.get("/stocks", authMiddleware, async (req, res) => {
