@@ -1,13 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../config/db");
-const authMiddleware = require("../middleware/authMiddleware"); // Middleware to get user_id
+const authMiddleware = require("../middleware/authMiddleware");
 
 router.get("/", authMiddleware, async (req, res) => {
-  // The user ID is attached to the request by the authMiddleware
   const userId = req.user.id;
-
-  // Dates are received from the query string (e.g., /api/monthly-report?startDate=2025-09-01&endDate=2025-09-30)
   const { startDate, endDate } = req.query;
 
   if (!startDate || !endDate) {
@@ -17,7 +14,7 @@ router.get("/", authMiddleware, async (req, res) => {
   }
 
   try {
-    // --- Query 1: Fetch Transactions ---
+    // Query 1: Fetch Transactions
     const transactionsQuery = pool.query(
       `SELECT id, "itemName", price, quantity, "totalPrice", "transactionDate", classification
        FROM transactions 
@@ -25,7 +22,7 @@ router.get("/", authMiddleware, async (req, res) => {
       [userId, startDate, endDate]
     );
 
-    // --- Query 2: Fetch Cashouts ---
+    // Query 2: Fetch Cashouts
     const cashoutsQuery = pool.query(
       `SELECT id, classification, amount, notes, cashout_date, category
        FROM cashouts 
@@ -33,16 +30,27 @@ router.get("/", authMiddleware, async (req, res) => {
       [userId, startDate, endDate]
     );
 
-    // --- Execute both queries concurrently ---
-    const [transactionsResult, cashoutsResult] = await Promise.all([
-      transactionsQuery,
-      cashoutsQuery,
-    ]);
+    // --- NEW Query 3: Fetch Payments ---
+    const paymentsQuery = pool.query(
+      `SELECT id, transaction_date, amount_to_pay, discount, net_amount
+       FROM payments
+       WHERE user_id = $1 AND transaction_date >= $2 AND transaction_date <= $3`,
+      [userId, startDate, endDate]
+    );
+
+    // --- Execute all three queries concurrently ---
+    const [transactionsResult, cashoutsResult, paymentsResult] =
+      await Promise.all([
+        transactionsQuery,
+        cashoutsQuery,
+        paymentsQuery, // Add new query to the execution
+      ]);
 
     // --- Send the combined data as a response ---
     res.json({
       transactions: transactionsResult.rows,
       cashouts: cashoutsResult.rows,
+      payments: paymentsResult.rows, // Add new data to the response
     });
   } catch (err) {
     console.error(err.message);
