@@ -37,7 +37,8 @@ const paymentRoutes = require("../routes/payments");
 const cashoutRoutes = require("../routes/cashout");
 const categoriesRouter = require("../routes/categories");
 const categoricalReportRoutes = require("../routes/categoricalReport.js");
-const monthlyReportRoutes = require("../routes/monthlyReport.js"); // Import the new route
+// --- CHANGE: Import the new category logs route ---
+const categoryLogsRoutes = require("../routes/categoryLogs.js");
 
 // Apply routes
 app.use("/api", itemRoutes);
@@ -51,7 +52,8 @@ app.use("/api", paymentRoutes);
 app.use("/api", cashoutRoutes);
 app.use("/api/categories", categoriesRouter);
 app.use("/api", categoricalReportRoutes);
-app.use("/api/monthly-report", monthlyReportRoutes); // Use the new route
+// --- CHANGE: Use the new category logs route and remove the old monthly report route ---
+app.use("/api/category-logs", categoryLogsRoutes);
 
 // Export the Express app handler for Vercel
 module.exports = app;
